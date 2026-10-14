@@ -1,3 +1,9 @@
+//! Short refs, full refs and keys.
+//!
+//! In the logs, XAPI writes refs in two ways: short (`R:5fe71a7a2d59`)
+//! and full (`OpaqueRef:5fe71a7a-2d59-...`). This module converts both
+//! into the same number, a key, so we can link them.
+
 const REF_PREFIX: &str = "OpaqueRef:";
 const DUMMY_PREFIX: &str = "DummyRef:";
 const DUMMY_SEP: &str = "|";
@@ -42,6 +48,15 @@ fn parse_hex(bytes: &[u8]) -> Option<u64> {
 /// easy to use as a key.
 ///
 /// See `really_pretty_and_small` in ocaml/xapi-types/ref.ml.
+///
+/// # Examples
+///
+/// ```
+/// use xapi_logs::refs::short_key;
+///
+/// assert_eq!(short_key("R:5fe71a7a2d59"), Some(0x5fe71a7a2d59));
+/// assert_eq!(short_key("O:VM.migrate_s"), None);
+/// ```
 pub fn short_key(s: &str) -> Option<u64> {
     let chars = s.as_bytes(); // gives a slice
 
