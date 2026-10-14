@@ -1,4 +1,30 @@
-/// A short key starts with R:, D: or O: with 12 digits
+/// Converts a short ref from the XAPI logs into a number
+///
+/// In the logs, XAPI does not write the full ref of a task. It writes a short
+/// version in the task part of the line:
+/// ```text
+/// [debug||831 /var/lib/xcp/xapi|VM.migrate_send R:5fe71a7a2d59|audit]
+///                                               ^^^^^^^^^^^^^^
+/// ```
+///
+/// A short ref starts with a R:, D: or O: and is followed by 12 hex digits.
+/// - R: is a real ref. The task is in the XAPI database.
+/// - D: is a dummy ref. The task is not in the XAPI database.
+/// - O: is another kind of ref. It contains text, not hex, so we return None.
+///
+/// The 12 hex digits come from the uuid of the full ref. We take the first
+/// 8 digits and the 4 digits after the first dash:
+///
+/// ```text
+/// OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2
+///           ^^^^^^^^ ^^^^
+/// R:5fe71a7a2d59
+/// ```
+///
+/// We return the 12 digits as a number because it is fast to compare and
+/// easy to use as a key.
+///
+/// See `really_pretty_and_small` in ocaml/xapi-types/ref.ml.
 pub fn short_key(s: &str) -> Option<u64> {
     let chars = s.as_bytes(); // gives a slice
 
