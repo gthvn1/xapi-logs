@@ -1,3 +1,7 @@
+const REF_PREFIX: &str = "OpaqueRef:";
+const DUMMY_PREFIX: &str = "DummyRef:";
+const DUMMY_SEP: &str = "|";
+
 fn parse_hex(bytes: &[u8]) -> Option<u64> {
     // Caller checks the length, empty gives Some(0).
     bytes.iter().try_fold(0u64, |acc, &b| {
@@ -115,6 +119,54 @@ pub fn key_of_uuid(uuid: &str) -> Option<u64> {
     Some(v1 << 16 | v2)
 }
 
+/// Converts a full ref into the same key as [`short_key`].
+///
+/// XAPI writes full refs in log messages, in SMlog, and sometimes in the
+/// task part of the line. There are two kinds of full ref:
+/// ```text
+/// - OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2          <- Real ref
+/// - DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan  <- Dummy ref
+///             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^
+///                       uuid                        name
+/// ```
+///
+/// We take the uuid and we use [`key_of_uuid`]. The name of a dummy ref is
+/// not used.
+/// We return None for everything else.
+///
+/// See `of_string` in ocaml/xapi-types/ref.ml for the formats.
+///
+/// # Examples
+///
+/// ```
+/// use xapi_logs::refs::{key_of_ref, short_key};
+///
+/// // A full ref and its short ref give the same key
+/// let full = key_of_ref("OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2");
+/// assert_eq!(full, short_key("R:5fe71a7a2d59"));
+///
+/// // A dummy ref from SMlog and its short ref in xensource.log
+/// let dummy = key_of_ref("DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan");
+/// assert_eq!(dummy, short_key("D:c1baed25a658"));
+///
+/// assert_eq!(key_of_ref("OpaqueRef:NULL"), None);
+/// ```
+pub fn key_of_ref(input: &str) -> Option<u64> {
+    if let Some(uuid) = input.strip_prefix(REF_PREFIX) {
+        key_of_uuid(uuid)
+    } else if let Some(dummy_parts) = input.strip_prefix(DUMMY_PREFIX) {
+        let mut subparts = dummy_parts.split(DUMMY_SEP);
+        // We are expecting an empty string and then the UUID
+        if !subparts.next()?.is_empty() {
+            return None;
+        }
+        let uuid = subparts.next()?;
+        key_of_uuid(uuid)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,6 +187,15 @@ mod tests {
             "key_of_uuid({input:?} = {got:x?}), expected {expected:x?}"
         );
     }
+
+    fn check_ref(input: &str, expected: Option<u64>) {
+        let got = key_of_ref(input);
+        assert_eq!(
+            got, expected,
+            "key_of_ref({input:?}) = {got:x?}, expected {expected:x?}"
+        );
+    }
+
     // --- valid refs, taken from the real logs ---
 
     #[test]
@@ -336,5 +397,198 @@ mod tests {
     fn uuid_non_hex_in_unused_part() {
         // only fails if you validate the whole uuid
         check_uuid("c1baed25-a658-9de0-b212-200d2d2d9c9z", None);
+    }
+
+    // --- real refs ---
+
+    #[test]
+    fn ref_opaque() {
+        check_ref(
+            "OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2",
+            Some(0x5fe71a7a2d59),
+        );
+    }
+
+    // the migration task: full ref <-> R: tag in the task column
+    #[test]
+    fn ref_opaque_matches_short_ref() {
+        assert_eq!(
+            key_of_ref("OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2"),
+            short_key("R:5fe71a7a2d59"),
+        );
+    }
+
+    // xensource.log.3: a full ref used as the task column itself
+    //   [ info||262544 |OpaqueRef:84efd69f-050a-c857-6d69-ca645f4faf24|Storage_smapiv1_wrapper]
+    #[test]
+    fn ref_opaque_from_task_column() {
+        check_ref(
+            "OpaqueRef:84efd69f-050a-c857-6d69-ca645f4faf24",
+            Some(0x84efd69f050a),
+        );
+    }
+
+    // --- dummy refs ---
+
+    // SMlog: 'subtask_of': 'DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan'
+    #[test]
+    fn ref_dummy() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan",
+            Some(0xc1baed25a658),
+        );
+    }
+
+    // xensource-ip11.log (http request): subtask_of = DummyRef:|d208e7e2-...|VM.assert_can_migrate
+    // and in the task column of the migration: VM.assert_can_migrate D:d208e7e26ae6
+    #[test]
+    fn ref_dummy_matches_short_ref() {
+        assert_eq!(
+            key_of_ref("DummyRef:|d208e7e2-6ae6-0dbf-e3f0-1b75437f516e|VM.assert_can_migrate"),
+            short_key("D:d208e7e26ae6"),
+        );
+    }
+
+    // xapi joins the rest back as the name: a name can contain '|'
+    #[test]
+    fn ref_dummy_name_with_pipe() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|a|b",
+            Some(0xc1baed25a658),
+        );
+    }
+
+    #[test]
+    fn ref_dummy_empty_name() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|",
+            Some(0xc1baed25a658),
+        );
+    }
+
+    // valid for xapi's Ref.of_string too: no name at all
+    #[test]
+    fn ref_dummy_no_name() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f",
+            Some(0xc1baed25a658),
+        );
+    }
+
+    // dummy names are task names, and many contain ':' (dispatch:event.from)
+    #[test]
+    fn ref_dummy_name_with_colon() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|dispatch:event.from",
+            Some(0xc1baed25a658),
+        );
+    }
+
+    // the uuid must come right after "DummyRef:|"
+    #[test]
+    fn ref_dummy_text_before_pipe() {
+        check_ref(
+            "DummyRef:x|c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan",
+            None,
+        );
+    }
+
+    // the uuid must be followed by '|' or the end, not ':'
+    #[test]
+    fn ref_dummy_colon_after_uuid() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f:SR.scan",
+            None,
+        );
+    }
+
+    // --- null and other ---
+
+    #[test]
+    fn ref_null() {
+        check_ref("OpaqueRef:NULL", None);
+    }
+
+    #[test]
+    fn ref_prefix_only() {
+        check_ref("OpaqueRef:", None);
+    }
+
+    #[test]
+    fn ref_dummy_prefix_only() {
+        check_ref("DummyRef:|", None);
+    }
+
+    #[test]
+    fn ref_empty() {
+        check_ref("", None);
+    }
+
+    // not a full ref: those have their own functions
+    #[test]
+    fn ref_given_a_bare_uuid() {
+        check_ref("5fe71a7a-2d59-af9c-0ddb-89f1324b52d2", None);
+    }
+
+    #[test]
+    fn ref_given_a_short_ref() {
+        check_ref("R:5fe71a7a2d59", None);
+    }
+
+    #[test]
+    fn ref_lowercase_prefix() {
+        check_ref("opaqueref:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2", None);
+    }
+
+    // --- malformed ---
+
+    #[test]
+    fn ref_opaque_bad_uuid() {
+        check_ref("OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52dz", None);
+    }
+
+    // missing the '|' right after "DummyRef:"
+    #[test]
+    fn ref_dummy_no_leading_pipe() {
+        check_ref(
+            "DummyRef:c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan",
+            None,
+        );
+    }
+
+    // the uuid must be followed by '|' or the end
+    #[test]
+    fn ref_dummy_uuid_too_long() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f0|SR.scan",
+            None,
+        );
+    }
+
+    // must return None, and must not panic: 'é' is 2 bytes and sits across byte 36
+    #[test]
+    fn ref_dummy_non_ascii_at_uuid_end() {
+        check_ref(
+            "DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9é|SR.scan",
+            None,
+        );
+    }
+
+    // --- exact token only: finding refs inside text is a later step ---
+
+    // real: "Failed to synchronise DB with host OpaqueRef:6fd1bdb7-...:"
+    #[test]
+    fn ref_with_trailing_colon() {
+        check_ref("OpaqueRef:6fd1bdb7-8df9-4b87-a280-2e072236498b:", None);
+    }
+
+    #[test]
+    fn ref_with_trailing_semicolon() {
+        check_ref("OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2;", None);
+    }
+
+    #[test]
+    fn ref_with_trailing_space() {
+        check_ref("OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2 ", None);
     }
 }
