@@ -29,6 +29,12 @@
           # becomes the env var RUST_SRC_PATH inside `nix develop`,
           # so rust-analyzer can find the std library sources.
           RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+
+          # can be used with:
+          # rdoc() {
+          #     xdg-open "file://$RUST_DOCS/std/index.html?search=$*";
+          # }
+          RUST_DOCS = "${pkgs.rustc.unwrapped.doc}/share/doc/docs/html";
         };
       };
 }
