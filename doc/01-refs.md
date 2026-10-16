@@ -12,7 +12,7 @@ The part after `OpaqueRef:` is a random uuid, created by [`make`][make].
 
 ### Four kinds of ref
 
-In XAPI, a ref has one of four kinds ([`type 'a t'`][type]):
+In XAPI, a ref has one of four kinds ([`type 'a t`][type]):
 ```ocaml
 type 'a t =
   | Real of string            (* ref to an object in the database *)
@@ -29,10 +29,10 @@ Other  any text
 Null   OpaqueRef:NULL
 ```
 
-A dummy ref is used for task that XAPI does not store in the database, for example
+A dummy ref is used for a task that XAPI does not store in the database, for example
 an internal call like `SR.scan`. It has a UUID and a name.
 
-### Short refs in the task column
+## Short refs in the task column
 
 A full ref is long. In the task part of a log line, XAPI writes a short
 version ([`really_pretty_and_small`][small]):
@@ -45,8 +45,8 @@ version ([`really_pretty_and_small`][small]):
 - `D:` is a dummy ref. The task is not in the XAPI database.
 - `O:` is another kind of ref. XAPI keeps the first 12 characters of its text.
 
-For `R:` and `D:`, XAPI keeps the 12 hex digits come from the uuid of the full
-ref. We take the first 8 digits and the 4 digits after the first dash:
+For `R:` and `D:`, XAPI keeps the 12 hex digits of the UUID: the first 8 digits
+and the 4 digits after the first dash:
 
 ```text
 OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2
@@ -64,10 +64,10 @@ assert_eq!(short_key("R:5fe71a7a2d59"), Some(0x5fe71a7a2d59));
 
 ## Why it matters: one task, two log files
 
-During a VM migration, XAPI scans a SR. In *xensource.log*, the scan is a dummy task
+During a VM migration, XAPI scans an SR. In *xensource.log*, the scan is a dummy task
 with a short ref:
 ```text
-Mar 23 18:31:14 xcp-gtn-ip11 xapi: [debug||851 |VM.migrate_send R:5fe71a7a2d59|dummytaskhelper] task SR.scan D:c1baed25a658 created by task O:VM.migrate_s   
+Mar 23 18:31:14 xcp-gtn-ip11 xapi: [debug||851 |VM.migrate_send R:5fe71a7a2d59|dummytaskhelper] task SR.scan D:c1baed25a658 created by task O:VM.migrate_s
 ```
 
 The scan itself is done by SM, which writes in *SMlog*. There, the same task appears
