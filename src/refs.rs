@@ -3,6 +3,8 @@
 //! In the logs, XAPI writes refs in two ways: short (`R:5fe71a7a2d59`)
 //! and full (`OpaqueRef:5fe71a7a-2d59-...`). This module converts both
 //! into the same number, a key, so we can link them.
+//!
+//! See [chapter 1](crate::chapter_01_refs) for how XAPI uses refs.
 
 const REF_PREFIX: &str = "OpaqueRef:";
 const DUMMY_PREFIX: &str = "DummyRef:";
