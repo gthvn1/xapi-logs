@@ -23,16 +23,52 @@
 //! - XAPI does not call `openlog` (see ocaml/libs/log/syslog.ml), so syslog uses
 //!   the program name as the daemon name.
 
-#[allow(unused)]
+#[derive(Debug, PartialEq)]
+enum Priority {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct XapiLog<'a> {
-    priority: &'a str,
+    /// Only 4 values exist in debug.ml: debug, info, warn, error.
+    priority: Priority,
+    /// Always empty in logs, it is for tracing.
     remote_ctx: &'a str,
+    /// The thread id.
     id: u64,
+    /// The thread name. It can be empty and it can contain ']'.
     name: &'a str,
+    /// Can be empty. Usually name R:xxx; sometimes a full OpaqueRef.
     task: &'a str,
+    /// The module that logged the line. It ends at the ']'.
     brand: &'a str,
+    /// Anything, including '|'and ']'. It can be empty.
     message: &'a str,
+}
+
+/// Parse the body of a message that is a XAPI log.
+///
+/// [debug||831 /var/lib/xcp/xapi|VM.migrate_send R:5fe71a7a2d59|audit] VM.migrate_send: VM = ...
+///
+/// ```text
+/// See ocaml/libs/log/debug.ml:format
+/// xapi_log := '[' intro '|' remote_ctx '|' thread '|' task '|' brand ']' ' ' message
+/// intro    := time priority
+/// priority := DEBUG | INFO | WARN | ERROR
+/// time     := gettimestring?
+/// thread   := id ' ' name
+/// id       := INT
+/// name     := STRING
+/// task     := STRING
+/// brand    := STRING
+/// message  := STRING
+/// ```
+///
+fn parse_body(_: &str) -> Option<XapiLog<'_>> {
+    todo!("parse_body")
 }
 
 /// A log line split into its syslog part and its body.
