@@ -23,33 +23,22 @@ fn parse_hex(bytes: &[u8]) -> Option<u64> {
     })
 }
 
-/// Converts a short ref from the XAPI logs into a number
+/// Converts a short ref from the XAPI logs into a number.
 ///
-/// In the logs, XAPI does not write the full ref of a task. It writes a short
-/// version in the task part of the line:
-/// ```text
-/// [debug||831 /var/lib/xcp/xapi|VM.migrate_send R:5fe71a7a2d59|audit]
-///                                               ^^^^^^^^^^^^^^
-/// ```
+/// A short ref is what XAPI writes in the task part of a log line.
+/// See [chapter 1](crate::chapter_01_refs#short-refs-in-the-task-column).
 ///
-/// A short ref starts with R:, D: or O: and is followed by 12 hex digits.
-/// - R: is a real ref. The task is in the XAPI database.
-/// - D: is a dummy ref. The task is not in the XAPI database.
-/// - O: is another kind of ref. It contains text, not hex, so we return None.
-///
-/// The 12 hex digits come from the uuid of the full ref. We take the first
-/// 8 digits and the 4 digits after the first dash:
-///
-/// ```text
-/// OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2
-///           ^^^^^^^^ ^^^^
-/// R:5fe71a7a2d59
-/// ```
-///
-/// We return the 12 digits as a number because it is fast to compare and
+/// The format is `R:`, `D:` or `O:` followed by 12 hex digits. We return
+/// the 12 digits as a number because it is fast to compare and
 /// easy to use as a key.
 ///
-/// See `really_pretty_and_small` in ocaml/xapi-types/ref.ml.
+/// Returns None if:
+/// - the prefix is not `R:`, `D:` or `O:`,
+/// - there are not exactly 12 hex digits after it. An `O:` ref usually contains
+///   text, like `O:VM.migrate_s`, so it gives None.
+///
+/// See [`really_pretty_and_small`](https://github.com/xapi-project/xen-api/blob/26.1-lcm/ocaml/xapi-types/ref.ml#L137)
+/// in ref.ml.
 ///
 /// # Examples
 ///
@@ -73,7 +62,7 @@ pub fn short_key(s: &str) -> Option<u64> {
     parse_hex(&chars[2..])
 }
 
-/// Converts a full uuid into the same key as [`short_key`]
+/// Converts a full uuid into the same key as [`short_key`].
 ///
 /// XAPI uses uuids in full refs:
 /// - `OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2` in the logs and the database
@@ -95,6 +84,9 @@ pub fn short_key(s: &str) -> Option<u64> {
 ///
 /// The full uuid must be valid. If one digit or one dash is wrong, even in the part
 /// we don't use, we return None.
+///
+/// Be careful: use the uuid inside a ref, not the `uuid` field of an object.
+/// See [the trap](crate::chapter_01_refs#a-trap-a-ref-is-not-a-uuid).
 ///
 /// # Examples
 ///
@@ -138,20 +130,26 @@ pub fn key_of_uuid(uuid: &str) -> Option<u64> {
 
 /// Converts a full ref into the same key as [`short_key`].
 ///
-/// XAPI writes full refs in log messages, in SMlog, and sometimes in the
+/// XAPI writes full refs in log messages, in *SMlog*, and sometimes in the
 /// task part of the line. There are two kinds of full ref:
 /// ```text
-/// - OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2          <- Real ref
-/// - DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan  <- Dummy ref
-///             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^
+/// OpaqueRef:5fe71a7a-2d59-af9c-0ddb-89f1324b52d2          <- Real ref
+/// DummyRef:|c1baed25-a658-9de0-b212-200d2d2d9c9f|SR.scan  <- Dummy ref
+///           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^
 ///                       uuid                        name
 /// ```
 ///
 /// We take the uuid and we use [`key_of_uuid`]. The name of a dummy ref is
-/// not used.
-/// We return None for everything else.
+/// not used: it can be empty, or contain `|` or `:`.
 ///
-/// See `of_string` in ocaml/xapi-types/ref.ml for the formats.
+/// Returns None if:
+/// - the input is `OpaqueRef:NULL`, the null ref,
+/// - the uuid is invalid,
+/// - there is extra text after the ref, like `OpaqueRef:<uuid>,`. The input
+///   must be one ref only. Finding refs inside a message is another job.
+///
+/// See [`of_string`](https://github.com/xapi-project/xen-api/blob/26.1-lcm/ocaml/xapi-types/ref.ml#L109)
+/// in ref.ml for the formats.
 ///
 /// # Examples
 ///
