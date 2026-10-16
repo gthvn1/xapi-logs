@@ -11,6 +11,8 @@
 //!
 //! 1. [Refs in XAPI logs](crate::chapter_01_refs): what a ref is, and how a
 //!    short ref like `R:5fe71a7a2d59` links *xensource.log* and *SMlog*.
+//! 2. [XAPI log line](crate::chapter_02_log_line): the two layers of a log
+//!    line, and what each field means.
 //!
 //! # Code
 //!
@@ -21,6 +23,9 @@
 
 #[doc = include_str!("../doc/01-refs.md")]
 pub mod chapter_01_refs {}
+
+#[doc = include_str!("../doc/02-log-line.md")]
+pub mod chapter_02_log_line {}
 
 pub mod line;
 pub mod refs;

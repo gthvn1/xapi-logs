@@ -1,27 +1,7 @@
 //! The syslog layer of a log line.
 //!
-//! XAPI does not write its log files itself. It sends each message to
-//! syslog, and syslog writes the file (xensource.log, SMlog, ...).
-//! So a line has two layers:
-//!
-//! ```text
-//! Mar 23 18:31:11 xcp-gtn-ip11 xapi: [debug||831 /var/lib/xcp/xapi|VM.migrate_send R:5fe71a7a2d59|audit] ...
-//! ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//!          syslog                                 body, written by the daemon
-//! ```
-//! - Syslog adds the time, the host and the daemon name.
-//! - The daemon writes the body. The XAPI daemons (xapi, xenopsd-xc, xcp-networkd, ...)
-//!   all use the same body format. SM is written in Python and uses another one.
-//!
-//! In ocaml/libs/log/debug.ml, `output_log` builds the body with `format`
-//! and gives it to `Syslog.log`. Three things to know:
-//!
-//! - It calls `format false`, so the body has no time. With the default syslog format,
-//!   it has no year, only seconds.
-//! - It calls `escape` on the body. New lines and non-ASCII characters are escaped,
-//!   so one message is always one line.
-//! - XAPI does not call `openlog` (see ocaml/libs/log/syslog.ml), so syslog uses
-//!   the program name as the daemon name.
+//! See [chapter 2](crate::chapter_02_log_line) for more details about the format
+//! of the log line.
 
 #[allow(unused)]
 #[derive(Debug, PartialEq)]
@@ -36,7 +16,7 @@ enum Priority {
 pub struct XapiLog<'a> {
     /// Only 4 values exist in debug.ml: debug, info, warn, error.
     priority: Priority,
-    /// Always empty in logs, it is for tracing.
+    /// Always empty in logs in 26.1, it is for tracing.
     remote_ctx: &'a str,
     /// The thread id.
     id: u64,
@@ -52,21 +32,6 @@ pub struct XapiLog<'a> {
 
 /// Parse the body of a message that is a XAPI log.
 ///
-/// [debug||831 /var/lib/xcp/xapi|VM.migrate_send R:5fe71a7a2d59|audit] VM.migrate_send: VM = ...
-///
-/// ```text
-/// See ocaml/libs/log/debug.ml:format
-/// xapi_log := '[' intro '|' remote_ctx '|' thread '|' task '|' brand ']' ' ' message
-/// intro    := time priority
-/// priority := DEBUG | INFO | WARN | ERROR
-/// time     := gettimestring?
-/// thread   := id ' ' name
-/// id       := INT
-/// name     := STRING
-/// task     := STRING
-/// brand    := STRING
-/// message  := STRING
-/// ```
 ///
 #[allow(unused)]
 fn parse_body(_: &str) -> Option<XapiLog<'_>> {
