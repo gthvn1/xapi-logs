@@ -23,6 +23,7 @@
 //! - XAPI does not call `openlog` (see ocaml/libs/log/syslog.ml), so syslog uses
 //!   the program name as the daemon name.
 
+#[allow(unused)]
 #[derive(Debug, PartialEq)]
 enum Priority {
     Debug,
@@ -67,6 +68,7 @@ pub struct XapiLog<'a> {
 /// message  := STRING
 /// ```
 ///
+#[allow(unused)]
 fn parse_body(_: &str) -> Option<XapiLog<'_>> {
     todo!("parse_body")
 }

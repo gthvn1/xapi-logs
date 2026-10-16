@@ -13,7 +13,11 @@
       in {
 
         packages.${system}.default = craneLib.buildPackage {
-          src = craneLib.cleanCargoSource ./.;
+            src = pkgs.lib.cleanSourceWith {
+              src = ./.;
+              filter = path: type:
+                (pkgs.lib.hasSuffix ".md" path) || (craneLib.filterCargoSources path type);
+            };
         };
 
         devShells.${system}.default = pkgs.mkShell {
