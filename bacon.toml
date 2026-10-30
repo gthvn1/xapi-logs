@@ -1,1 +1,5 @@
 watch = ["doc"]
+
+[jobs.steel-poc]
+command = ["cargo", "run", "-p", "steel-poc"]
+need_stdout = true

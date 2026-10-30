@@ -3,4 +3,11 @@ name = "xapi-logs"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["sandbox/*"]
+
+[profile.dev.package."*"]
+opt-level = 3
+debug = "line-tables-only"
+
 [dependencies]

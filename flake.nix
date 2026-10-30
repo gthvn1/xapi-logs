@@ -20,7 +20,9 @@
             };
         };
 
-        devShells.${system}.default = pkgs.mkShell {
+        devShells.${system}.default = (pkgs.mkShell.override {
+          stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
+        }) {
           packages = [
             pkgs.bacon
             pkgs.cargo

@@ -23,3 +23,13 @@ Each function has examples. They are also tests.
 ## Run the tests
 
 - `cargo test`
+
+
+## Notes
+
+### Steel-poc
+
+- It is really long to compile and run it in debug mode. To improve things we do:
+    - Steel itself is compiled without optimization (execution is 10x faster): `opt-level = 3` for dependencies, our code is still in debug.
+    - Dwarf was 112MB, inflated by optimization. It took a long time to link: `debug = "line-tables-only"`
+    - By defaut nix provides an olf GNU ld (BFD) linker: `mold via useMoldLinker` in flake.nix
